@@ -12,7 +12,7 @@
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => (
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-  const KUNCI = { cfg: 'arta.cfg', data: 'arta.data', antre: 'arta.antrean', kat: 'arta.kategori', sinkron: 'arta.sinkron' };
+  const KUNCI = { cfg: 'arta.cfg', data: 'arta.data', antre: 'arta.antrean', kat: 'arta.kategori', sinkron: 'arta.sinkron', tema: 'arta.tema' };
   const simpanLokal = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* penyimpanan penuh */ } };
   const bacaLokal = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } };
 
@@ -25,7 +25,8 @@
     { id: 'bulan', nama: 'Bulan ini' }, { id: 'kustom', nama: 'Kustom' }
   ];
   const JUDUL_HAL = { beranda: 'Ringkasan', grafik: 'Grafik', riwayat: 'Riwayat', setelan: 'Setelan' };
-  const WARNA = { nila: '#5b5bf0', teal: '#0e9c8f', garis: '#eceef6', tinta: '#15172e', tinta3: '#868ba6' };
+  // Warna grafik diambil dari style.css supaya ikut berganti saat tema diganti.
+  const warna = (nama) => getComputedStyle(document.documentElement).getPropertyValue(nama).trim();
 
   /* ---------- keadaan aplikasi ---------- */
   const S = {
@@ -34,6 +35,8 @@
     antre: bacaLokal(KUNCI.antre, []),
     katKustom: bacaLokal(KUNCI.kat, { pengeluaran: [], pemasukan: [] }),
     sinkronTerakhir: bacaLokal(KUNCI.sinkron, 0),
+    tema: bacaLokal(KUNCI.tema, 'otomatis'),
+    uji: null,
     hal: 'beranda',
     periode: 'bulan',
     kustom: { dari: '', sampai: '' },
@@ -301,9 +304,9 @@
     const ket = [denganTanggal ? tglRamah(t.tanggal) : '', t.catatan].filter(Boolean).join(', ') || (masuk ? 'Pemasukan' : 'Pengeluaran');
     return '<button type="button" class="tx" data-ubah="' + esc(t.id) + '">' +
       '<span class="tx-avatar' + (masuk ? ' masuk' : '') + '" aria-hidden="true">' + esc((t.kategori || '?').trim().charAt(0).toUpperCase()) + '</span>' +
-      '<span class="tx-tengah"><span class="tx-kat">' + esc(t.kategori) + '</span><span class="tx-ket">' + esc(ket) + '</span></span>' +
+      '<span class="tx-badan"><span class="tx-tengah"><span class="tx-kat">' + esc(t.kategori) + '</span><span class="tx-ket">' + esc(ket) + '</span></span>' +
       '<span class="tx-nominal' + (masuk ? ' masuk' : '') + '">' + (masuk ? '+' : '−') + rp(t.nominal) +
-      (tunda.has(t.id) ? '<span class="tx-tunda">menunggu dikirim</span>' : '') + '</span></button>';
+      (tunda.has(t.id) ? '<span class="tx-tunda">menunggu dikirim</span>' : '') + '</span></span></button>';
   }
 
   const GAMBAR_KOSONG = '<svg viewBox="0 0 80 80" aria-hidden="true"><path d="M22 12h36a4 4 0 0 1 4 4v52l-7-5-7 5-8-5-8 5-7-5-7 5V16a4 4 0 0 1 4-4Z"/><path d="M30 28h20M30 38h20M30 48h11"/></svg>';
@@ -461,7 +464,7 @@
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: 'rgba(21,23,46,.94)', padding: 10, cornerRadius: 10, displayColors: !!ganda, boxWidth: 8, boxHeight: 8, boxPadding: 4,
+          backgroundColor: warna('--tooltip'), padding: 10, cornerRadius: 10, displayColors: !!ganda, boxWidth: 8, boxHeight: 8, boxPadding: 4,
           titleFont: { weight: '600', size: 12 }, bodyFont: { weight: '700', size: 13 },
           callbacks: {
             title: (items) => judul[items[0].dataIndex],
@@ -470,8 +473,8 @@
         }
       },
       scales: {
-        x: { grid: { display: false }, border: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8, color: WARNA.tinta3 } },
-        y: { beginAtZero: true, border: { display: false }, grid: { color: WARNA.garis }, ticks: { maxTicksLimit: 4, color: WARNA.tinta3, callback: (v) => ringkas(v) } }
+        x: { grid: { display: false }, border: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 8, color: warna('--tinta-3') } },
+        y: { beginAtZero: true, border: { display: false }, grid: { color: warna('--grafik-garis') }, ticks: { maxTicksLimit: 4, color: warna('--tinta-3'), callback: (v) => ringkas(v) } }
       }
     };
   }
@@ -532,12 +535,12 @@
     Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
     Chart.defaults.font.size = 11;
     if (adaTren) {
-      grafik.tren = new Chart($('#g-tren'), { type: 'bar', data: { labels: tren.label, datasets: [batang('Pengeluaran', tren.nilai, WARNA.nila)] }, options: opsiBatang(tren.judul, false) });
+      grafik.tren = new Chart($('#g-tren'), { type: 'bar', data: { labels: tren.label, datasets: [batang('Pengeluaran', tren.nilai, warna('--aksen'))] }, options: opsiBatang(tren.judul, false) });
     }
     if (adaEnam) {
       grafik.banding = new Chart($('#g-banding'), {
         type: 'bar',
-        data: { labels: enam.label, datasets: [batang('Pemasukan', enam.masuk, WARNA.teal), batang('Pengeluaran', enam.keluar, WARNA.nila)] },
+        data: { labels: enam.label, datasets: [batang('Pemasukan', enam.masuk, warna('--g-masuk')), batang('Pengeluaran', enam.keluar, warna('--aksen'))] },
         options: opsiBatang(enam.judul, true)
       });
     }
@@ -619,17 +622,29 @@
     const mandiri = window.matchMedia('(display-mode: standalone)').matches;
     const kustom = ['pengeluaran', 'pemasukan'].map((j) => (S.katKustom[j] || []).map((k) =>
       '<span class="chip-hapus">' + esc(k) + '<button type="button" data-buang-kat="' + esc(k) + '" data-j="' + j + '" aria-label="Hapus kategori ' + esc(k) + '"><svg viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></svg></button></span>').join('')).join('');
+    const tema = (id, nama) => '<button type="button" data-tema="' + id + '" class="' + (S.tema === id ? 'aktif' : '') + '" aria-pressed="' + (S.tema === id) + '">' + nama + '</button>';
 
-    let html = '<div class="kartu setelan-grup">' +
+    let html = '<div class="kartu setelan-grup pertama">' +
+      '<div class="setelan-baris"><div><strong>Tampilan</strong></div><div class="segmen" role="group" aria-label="Tampilan">' +
+      tema('otomatis', 'Otomatis') + tema('terang', 'Terang') + tema('gelap', 'Gelap') + '</div></div></div>' +
+      '<p class="setelan-kaki">Otomatis mengikuti pengaturan mode gelap di HP.</p>';
+
+    html += '<h2 class="setelan-judul">Spreadsheet</h2><div class="kartu setelan-grup">' +
       '<div class="setelan-baris"><div><strong>Sinkronisasi</strong><small>Terakhir: ' + esc(kapan) + '</small></div><button type="button" class="tombol" data-sinkron>Sinkronkan</button></div>' +
       (S.antre.length ? '<div class="setelan-baris"><div><strong>' + S.antre.length + ' perubahan menunggu dikirim</strong><small>Tersimpan di HP ini dan dikirim otomatis saat online.</small></div></div>' : '') +
       (S.status === 'galat' ? '<div class="setelan-baris"><div><strong>Perlu dicek</strong><small>' + esc(S.statusPesan) + '</small></div></div>' : '') +
-      '<div class="setelan-baris"><div><strong>Koneksi spreadsheet</strong><small>URL dan PIN tersimpan di HP ini</small></div><button type="button" class="tombol" data-ubah-koneksi>Ubah</button></div></div>';
+      '<div class="setelan-baris"><div><strong>Koneksi</strong><small>URL dan PIN tersimpan di HP ini</small></div><button type="button" class="tombol" data-ubah-koneksi>Ubah</button></div></div>';
 
-    html += '<h2 class="setelan-judul">Kategori tambahan buatanmu</h2><div class="chips" style="margin-top:10px">' +
-      (kustom || '<p style="font-size:13.5px;color:var(--tinta-2)">Belum ada. Buat lewat pilihan “+ Baru” saat mencatat transaksi.</p>') + '</div>';
+    html += '<h2 class="setelan-judul">Catat otomatis dari notifikasi</h2><div class="kartu setelan-grup"><div class="setelan-isi">' +
+      '<label class="isian"><span>Tempel teks notifikasi bank untuk melihat cara Arta membacanya. Tidak ada yang disimpan.</span>' +
+      '<textarea id="uji-teks" placeholder="Contoh: Pembayaran Rp25.000 ke Kopi Kenangan berhasil">' + esc(S.uji ? S.uji.teks : '') + '</textarea></label>' +
+      '<button type="button" class="tombol lebar" data-uji-notif>Periksa teks</button>' + hasilUji() + '</div></div>' +
+      '<p class="setelan-kaki">Pengirimnya adalah MacroDroid. Cara memasangnya ada di panduan.</p>';
 
-    html += '<div class="kartu setelan-grup" style="margin-top:22px">';
+    html += '<h2 class="setelan-judul">Kategori tambahan buatanmu</h2>' +
+      (kustom ? '<div class="chips kat-kustom">' + kustom + '</div>' : '<p class="setelan-kaki" style="margin-top:0">Belum ada. Buat lewat pilihan “+ Baru” saat mencatat transaksi.</p>');
+
+    html += '<h2 class="setelan-judul">Aplikasi</h2><div class="kartu setelan-grup">';
     if (!mandiri) {
       html += '<div class="setelan-baris"><div><strong>Pasang di layar utama</strong><small>' +
         (S.pasang ? 'Buka Arta seperti aplikasi biasa, tanpa bilah alamat.' : 'Di Chrome, buka menu ⋮ lalu pilih “Tambahkan ke layar utama”.') + '</small></div>' +
@@ -637,8 +652,51 @@
     }
     html += '<div class="setelan-baris"><div><strong>Keluar dari HP ini</strong><small>Menghapus URL, PIN, dan salinan data di HP ini. Spreadsheet tidak berubah.</small></div>' +
       '<button type="button" class="tombol bahaya-garis" data-keluar>Keluar</button></div></div>' +
-      '<p class="versi">Arta versi 1.0</p>';
+      '<p class="versi">Arta versi 2.0</p>';
     $('#setelan-isi').innerHTML = html;
+  }
+
+  function hasilUji() {
+    const u = S.uji;
+    if (!u || !u.hasil) return '';
+    if (u.galat) return '<div class="uji-hasil tidak" role="status"><strong>Belum bisa diperiksa</strong>' + esc(u.galat) + '</div>';
+    const h = u.hasil;
+    if (!h.dicatat) return '<div class="uji-hasil tidak" role="status"><strong>Tidak akan dicatat</strong>' + esc(h.alasan) + '</div>';
+    return '<div class="uji-hasil ya" role="status"><strong>Akan dicatat sebagai ' + (h.jenis === 'pemasukan' ? 'pemasukan' : 'pengeluaran') + ' ' + rp(h.nominal) + '</strong>' +
+      'Kategori: ' + esc(h.kategori) + '<br>Catatan: ' + esc(h.catatan) + '</div>';
+  }
+
+  async function ujiNotif() {
+    const teks = ($('#uji-teks').value || '').trim();
+    if (!teks) { $('#uji-teks').focus(); return; }
+    S.uji = { teks: teks, hasil: null };
+    const tombol = $('[data-uji-notif]');
+    tombol.disabled = true; tombol.textContent = 'Memeriksa…';
+    try {
+      const r = await panggil('ujiNotif', { app: 'Uji', judul: '', teks: teks });
+      S.uji.hasil = r.hasil;
+    } catch (e) {
+      S.uji.hasil = {}; S.uji.galat = e.jaringan ? 'Tidak ada koneksi internet.' : (e.kode === 'AKSI' ? 'Code.gs di spreadsheet masih versi lama. Tempel Code.gs yang baru, lalu buat versi deployment baru.' : e.message);
+    }
+    renderSetelan();
+  }
+
+  /* ---------- tema ---------- */
+  function temaGelap() {
+    return S.tema === 'gelap' || (S.tema === 'otomatis' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  }
+  function terapkanTema() {
+    const gelap = temaGelap();
+    document.documentElement.setAttribute('data-tema', gelap ? 'gelap' : 'terang');
+    const meta = $('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', gelap ? '#000000' : '#f2f2f7');
+    if (S.cfg && S.hal === 'grafik') renderGrafik();
+    if (S.cfg && S.hal === 'setelan') renderSetelan();
+  }
+  function aturTema(tema) {
+    S.tema = tema;
+    simpanLokal(KUNCI.tema, tema);
+    terapkanTema();
   }
 
   /* ---------- render utama ---------- */
@@ -892,6 +950,9 @@
 
     // status & setelan
     if (t.id === 'status' || 'sinkron' in d) { sinkron({ muat: true, berisik: true }); return; }
+    if (t.id === 'tema-cepat') { aturTema(temaGelap() ? 'terang' : 'gelap'); return; }
+    if (d.tema) { aturTema(d.tema); return; }
+    if ('ujiNotif' in d) { ujiNotif(); return; }
     if ('ubahKoneksi' in d) { tampilSetup(true); return; }
     if (t.id === 'setup-batal') { tampilUtama(); return; }
     if (d.buangKat) {
@@ -971,6 +1032,13 @@
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
     window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => { /* tetap jalan tanpa mode offline */ }); });
   }
+
+  if (window.matchMedia) {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const ganti = () => { if (S.tema === 'otomatis') terapkanTema(); };
+    if (mq.addEventListener) mq.addEventListener('change', ganti); else if (mq.addListener) mq.addListener(ganti);
+  }
+  terapkanTema();
 
   /* ---------- mulai ---------- */
   if (!S.cfg) tampilSetup(false);
