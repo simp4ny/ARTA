@@ -441,3 +441,38 @@ button.peringkat-item:active { opacity: 0.55; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
 }
+
+/* ---------- kunci aplikasi ---------- */
+.kunci { position: fixed; inset: 0; z-index: 100; background: var(--latar); overflow-y: auto; display: grid; place-items: center; padding: calc(var(--aman-atas) + 20px) 20px calc(var(--aman-bawah) + 20px); }
+.kunci[hidden] { display: none; }
+.kunci-isi { width: 100%; max-width: 320px; text-align: center; }
+.kunci-isi[hidden] { display: none; }
+.kunci-logo { border-radius: 13px; margin: 0 auto; }
+.kunci h1 { margin-top: 16px; font-size: 22px; line-height: 1.2; font-weight: 600; letter-spacing: -0.02em; }
+.kunci-ket { margin-top: 6px; min-height: 20px; font-size: 15px; line-height: 1.35; color: var(--tinta-2); }
+.kunci-titik { display: flex; justify-content: center; gap: 18px; margin-top: 22px; }
+.kunci-titik i { width: 13px; height: 13px; border-radius: 50%; border: 1.5px solid var(--tinta-3); }
+.kunci-titik i.isi { background: var(--tinta); border-color: var(--tinta); }
+.kunci-titik.salah { animation: goyang 0.36s ease-in-out; }
+.kunci-galat { min-height: 38px; margin-top: 12px; font-size: 14px; line-height: 1.35; color: var(--bahaya); }
+.kunci-papan { display: grid; grid-template-columns: repeat(3, 76px); justify-content: center; gap: 14px 24px; margin-top: 6px; }
+.kunci-papan button { width: 76px; height: 76px; border-radius: 50%; background: var(--isi); font-size: 30px; font-weight: 400; display: grid; place-items: center; -webkit-tap-highlight-color: transparent; }
+.kunci-papan button:active { background: var(--isi-kuat); }
+.kunci-papan button.teks { background: transparent; font-size: 14px; line-height: 1.2; color: var(--aksen); }
+.kunci-papan button.teks:active { opacity: 0.5; }
+.kunci-papan button.teks svg { width: 28px; height: 28px; fill: none; stroke: var(--tinta-2); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.kunci-papan button[disabled] { opacity: 0.35; pointer-events: none; }
+.kunci-papan button:focus-visible { outline: 2px solid var(--aksen); outline-offset: 2px; }
+.kunci-isi.lupa { text-align: left; max-width: 420px; }
+.kunci-isi.lupa h1 { font-size: 30px; font-weight: 700; letter-spacing: -0.03em; margin-top: 0; }
+.kunci-isi.lupa form { display: grid; gap: 12px; margin-top: 22px; }
+.kunci-isi.lupa .isian input { background: var(--kartu); font-size: 24px; letter-spacing: 0.3em; text-align: center; font-variant-numeric: tabular-nums; }
+.kunci-isi.lupa .galat { margin-top: 0; }
+@keyframes goyang { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-9px); } 40%, 80% { transform: translateX(9px); } }
+@media (max-height: 640px) {
+  .kunci-logo { display: none; }
+  .kunci h1 { margin-top: 0; }
+  .kunci-papan { grid-template-columns: repeat(3, 68px); gap: 10px 22px; }
+  .kunci-papan button { width: 68px; height: 68px; font-size: 27px; }
+}
+@media (prefers-reduced-motion: reduce) { .kunci-titik.salah { animation: none; } }

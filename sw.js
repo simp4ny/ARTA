@@ -1,6 +1,6 @@
 /* ARTA — service worker: membuat aplikasi bisa dibuka cepat dan tanpa sinyal.
    Setiap kali kamu mengunggah versi file yang baru, naikkan angka VERSI. */
-const VERSI = 'arta-v3';
+const VERSI = 'arta-v4';
 const ASET = [
   './', 'index.html', 'style.css', 'app.js', 'chart.min.js', 'manifest.json',
   'font-inter.woff2', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'
