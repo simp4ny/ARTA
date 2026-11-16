@@ -48,37 +48,6 @@
     </div>
   </section>
 
-  <!-- ================= KUNCI APLIKASI (PIN 6 angka) ================= -->
-  <section id="kunci" class="kunci" hidden aria-label="Kunci aplikasi">
-    <div class="kunci-isi" id="kunci-pin">
-      <img src="icon-192.png" alt="" class="kunci-logo" width="56" height="56">
-      <h1 id="kunci-judul">Masukkan PIN</h1>
-      <p id="kunci-ket" class="kunci-ket"></p>
-      <div id="kunci-titik" class="kunci-titik" role="img" aria-label="0 dari 6 angka terisi"><i></i><i></i><i></i><i></i><i></i><i></i></div>
-      <p id="kunci-galat" class="kunci-galat" role="alert"></p>
-      <div class="kunci-papan" id="kunci-papan">
-        <button type="button" data-angka="1">1</button><button type="button" data-angka="2">2</button><button type="button" data-angka="3">3</button><button type="button" data-angka="4">4</button><button type="button" data-angka="5">5</button><button type="button" data-angka="6">6</button><button type="button" data-angka="7">7</button><button type="button" data-angka="8">8</button><button type="button" data-angka="9">9</button>
-        <button type="button" id="kunci-kiri" class="teks">Lupa PIN?</button>
-        <button type="button" data-angka="0">0</button>
-        <button type="button" id="kunci-hapus" class="teks" aria-label="Hapus satu angka"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 5H9l-6 7 6 7h12a1 1 0 0 0 1-1V6a1 1 0 0 0-1-1Z"/><path d="m12 9 6 6M18 9l-6 6"/></svg></button>
-      </div>
-    </div>
-    <div class="kunci-isi lupa" id="kunci-lupa" hidden>
-      <h1>Lupa PIN</h1>
-      <p id="lupa-ket" class="kunci-ket"></p>
-      <form id="form-lupa" novalidate>
-        <label class="isian" id="lupa-isian" hidden>
-          <span>Kode 6 angka dari email</span>
-          <input id="lupa-kode" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="7">
-        </label>
-        <p class="galat" id="lupa-galat" role="alert" hidden></p>
-        <button class="tombol utama lebar" type="submit" id="lupa-utama">Kirim kode ke Gmail</button>
-        <button class="tombol polos lebar" type="button" id="lupa-ulang" hidden>Kirim ulang kode</button>
-        <button class="tombol polos lebar" type="button" id="lupa-batal">Kembali</button>
-      </form>
-    </div>
-  </section>
-
   <!-- ================= APLIKASI UTAMA ================= -->
   <div id="utama" class="utama" hidden>
     <header class="kepala">
