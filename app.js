@@ -12,7 +12,9 @@
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => (
     { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-  const KUNCI = { cfg: 'arta.cfg', data: 'arta.data', antre: 'arta.antrean', kat: 'arta.kategori', sinkron: 'arta.sinkron', tema: 'arta.tema', kunci: 'arta.kunci', gagal: 'arta.kunci.gagal' };
+  const KUNCI = { cfg: 'arta.cfg', data: 'arta.data', antre: 'arta.antrean', kat: 'arta.kategori', sinkron: 'arta.sinkron', tema: 'arta.tema' };
+  // Kunci PIN aplikasi sudah ditiadakan: bersihkan sisa simpanannya.
+  try { localStorage.removeItem('arta.kunci'); localStorage.removeItem('arta.kunci.gagal'); } catch (e) { /* abaikan */ }
   const simpanLokal = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* penyimpanan penuh */ } };
   const bacaLokal = (k, d) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } };
 
@@ -36,12 +38,9 @@
     katKustom: bacaLokal(KUNCI.kat, { pengeluaran: [], pemasukan: [] }),
     sinkronTerakhir: bacaLokal(KUNCI.sinkron, 0),
     tema: bacaLokal(KUNCI.tema, 'otomatis'),
-    kunci: bacaLokal(KUNCI.kunci, null),   // { garam, sidik, jeda } — PIN kunci aplikasi
-    terbuka: false,
-    sembunyiSejak: 0,
     uji: null,
     hal: 'beranda',
-    periode: 'bulan',
+    periode: 'hari',
     kustom: { dari: '', sampai: '' },
     tren: 'harian',
     filter: { cari: '', jenis: 'semua', kategori: '', dari: '', sampai: '', batas: 60 },
@@ -632,14 +631,6 @@
       tema('otomatis', 'Otomatis') + tema('terang', 'Terang') + tema('gelap', 'Gelap') + '</div></div></div>' +
       '<p class="setelan-kaki">Otomatis mengikuti pengaturan mode gelap di HP.</p>';
 
-    const jeda = S.kunci ? Number(S.kunci.jeda) : 60;
-    const pilihJeda = (detik, nama) => '<button type="button" data-jeda="' + detik + '" class="' + (jeda === detik ? 'aktif' : '') + '" aria-pressed="' + (jeda === detik) + '">' + nama + '</button>';
-    html += '<h2 class="setelan-judul">Keamanan</h2><div class="kartu setelan-grup">' +
-      '<div class="setelan-baris"><div><strong>PIN kunci</strong><small>Diminta setiap kali Arta dibuka</small></div><button type="button" class="tombol" data-ubah-kunci>Ubah PIN</button></div>' +
-      '<div class="setelan-baris"><div><strong>Kunci ulang</strong><small>Setelah Arta ditinggalkan</small></div><div class="segmen" role="group" aria-label="Kunci ulang">' +
-      pilihJeda(0, 'Segera') + pilihJeda(60, '1 menit') + pilihJeda(300, '5 menit') + '</div></div></div>' +
-      '<p class="setelan-kaki">Lupa PIN? Di layar kunci, ketuk “Lupa PIN?” untuk menerima kode di Gmail-mu.</p>';
-
     html += '<h2 class="setelan-judul">Spreadsheet</h2><div class="kartu setelan-grup">' +
       '<div class="setelan-baris"><div><strong>Sinkronisasi</strong><small>Terakhir: ' + esc(kapan) + '</small></div><button type="button" class="tombol" data-sinkron>Sinkronkan</button></div>' +
       (S.antre.length ? '<div class="setelan-baris"><div><strong>' + S.antre.length + ' perubahan menunggu dikirim</strong><small>Tersimpan di HP ini dan dikirim otomatis saat online.</small></div></div>' : '') +
@@ -661,9 +652,9 @@
         (S.pasang ? 'Buka Arta seperti aplikasi biasa, tanpa bilah alamat.' : 'Di Chrome, buka menu ⋮ lalu pilih “Tambahkan ke layar utama”.') + '</small></div>' +
         (S.pasang ? '<button type="button" class="tombol" data-pasang>Pasang</button>' : '') + '</div>';
     }
-    html += '<div class="setelan-baris"><div><strong>Keluar dari HP ini</strong><small>Menghapus URL, PIN, kunci, dan salinan data di HP ini. Spreadsheet tidak berubah.</small></div>' +
+    html += '<div class="setelan-baris"><div><strong>Keluar dari HP ini</strong><small>Menghapus URL, PIN, dan salinan data di HP ini. Spreadsheet tidak berubah.</small></div>' +
       '<button type="button" class="tombol bahaya-garis" data-keluar>Keluar</button></div></div>' +
-      '<p class="versi">Arta versi 2.1</p>';
+      '<p class="versi">Arta versi 0.1</p>';
     $('#setelan-isi').innerHTML = html;
   }
 
@@ -869,230 +860,6 @@
     else toast('Belum terhapus di spreadsheet: ' + S.statusPesan, 'galat');
   }
 
-  /* ---------- kunci aplikasi: PIN 6 angka ---------- */
-  const PANJANG_PIN = 6;
-  const PIN_LEMAH = ['123456', '654321', '012345', '123123'];
-  // mode: 'buka' | 'buat' | 'ubah' ; langkah: 'lama' | 'baru' | 'ulang'
-  const K = { mode: null, langkah: null, buf: '', baru: '', pesan: '', sibuk: false, jam: null, lupa: null };
-
-  async function sidikPin(pin, garam) {
-    const enc = new TextEncoder();
-    if (window.crypto && crypto.subtle) {
-      const kunci = await crypto.subtle.importKey('raw', enc.encode(pin), 'PBKDF2', false, ['deriveBits']);
-      const bit = await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: enc.encode(garam), iterations: 150000 }, kunci, 256);
-      return Array.from(new Uint8Array(bit)).map((b) => b.toString(16).padStart(2, '0')).join('');
-    }
-    // Cadangan kalau halaman tidak dibuka lewat https (tidak terjadi di GitHub Pages).
-    let h = 2166136261;
-    const teks = garam + '|' + pin;
-    for (let putar = 0; putar < 2000; putar++) {
-      for (let i = 0; i < teks.length; i++) { h ^= teks.charCodeAt(i) + putar; h = Math.imul(h, 16777619); }
-    }
-    return 'c' + (h >>> 0).toString(16);
-  }
-  const garamBaru = () => {
-    const a = new Uint8Array(16);
-    if (window.crypto && crypto.getRandomValues) crypto.getRandomValues(a); else for (let i = 0; i < 16; i++) a[i] = Math.floor(Math.random() * 256);
-    return Array.from(a).map((b) => b.toString(16).padStart(2, '0')).join('');
-  };
-
-  const bacaGagal = () => bacaLokal(KUNCI.gagal, { n: 0, sampai: 0 });
-  const sisaTunggu = () => Math.max(0, Math.ceil((bacaGagal().sampai - Date.now()) / 1000));
-  function catatGagal() {
-    const g = bacaGagal();
-    g.n += 1;
-    // Tiap 5 kali salah: tunggu 30 detik, lalu 1, 2, 4 menit, paling lama 5 menit.
-    if (g.n % 5 === 0) g.sampai = Date.now() + Math.min(300, 30 * Math.pow(2, g.n / 5 - 1)) * 1000;
-    simpanLokal(KUNCI.gagal, g);
-    return g;
-  }
-
-  function bekukan(ya) {
-    ['#utama', '#setup', '#lembar', '#dialog'].forEach((q) => { const el = $(q); if (el) el.inert = ya; });
-  }
-
-  function tampilKunci(mode) {
-    K.mode = mode; K.langkah = mode === 'buat' ? 'baru' : 'lama';
-    K.buf = ''; K.baru = ''; K.pesan = ''; K.sibuk = false; K.lupa = null;
-    if (mode !== 'ubah') S.terbuka = false;
-    bekukan(true);
-    $('#kunci-lupa').hidden = true; $('#kunci-pin').hidden = false; $('#kunci').hidden = false;
-    renderKunci();
-    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
-  }
-
-  function tutupKunci() {
-    clearInterval(K.jam); K.jam = null; K.mode = null; K.buf = ''; K.baru = '';
-    $('#kunci').hidden = true;
-    bekukan(false);
-  }
-
-  function renderKunci() {
-    const tunggu = K.langkah === 'lama' ? sisaTunggu() : 0;
-    const judul = { lama: K.mode === 'ubah' ? 'Masukkan PIN sekarang' : 'Masukkan PIN', baru: K.mode === 'buat' && !K.dariLupa ? 'Buat PIN kunci' : 'Buat PIN baru', ulang: 'Ulangi PIN' }[K.langkah];
-    const ket = { lama: K.mode === 'ubah' ? 'Untuk memastikan ini kamu' : 'Arta terkunci', baru: '6 angka untuk membuka Arta di HP ini', ulang: 'Ketik sekali lagi untuk memastikan' }[K.langkah];
-    $('#kunci-judul').textContent = judul;
-    $('#kunci-ket').textContent = ket;
-    const titik = $('#kunci-titik');
-    Array.from(titik.children).forEach((el, i) => el.classList.toggle('isi', i < K.buf.length));
-    titik.setAttribute('aria-label', K.buf.length + ' dari ' + PANJANG_PIN + ' angka terisi');
-    $('#kunci-galat').textContent = tunggu ? 'Terlalu banyak PIN salah. Coba lagi dalam ' + tunggu + ' detik.' : K.pesan;
-    const kiri = $('#kunci-kiri');
-    const labelKiri = K.mode === 'ubah' ? 'Batal' : (K.langkah === 'ulang' ? 'Ulangi' : (K.mode === 'buka' ? 'Lupa PIN?' : ''));
-    kiri.textContent = labelKiri; kiri.style.visibility = labelKiri ? 'visible' : 'hidden';
-    $$('#kunci-papan [data-angka]').forEach((b) => { b.disabled = !!tunggu || K.sibuk; });
-    $('#kunci-hapus').disabled = !!tunggu || K.sibuk || !K.buf;
-    if (tunggu && !K.jam) {
-      K.jam = setInterval(() => { if (!sisaTunggu()) { clearInterval(K.jam); K.jam = null; K.pesan = ''; } if (!$('#kunci').hidden) renderKunci(); }, 1000);
-    }
-  }
-
-  function goyangTitik() {
-    const el = $('#kunci-titik');
-    el.classList.remove('salah'); void el.offsetWidth; el.classList.add('salah');
-    if (navigator.vibrate) { try { navigator.vibrate(60); } catch (e) { /* abaikan */ } }
-  }
-
-  function tekanAngka(angka) {
-    if (K.sibuk || $('#kunci').hidden || !$('#kunci-lupa').hidden) return;
-    if (K.langkah === 'lama' && sisaTunggu()) return;
-    if (K.buf.length >= PANJANG_PIN) return;
-    K.buf += angka; K.pesan = '';
-    renderKunci();
-    if (K.buf.length === PANJANG_PIN) setTimeout(selesaiPin, 90); // beri waktu titik terakhir terlihat
-  }
-  function hapusAngka() {
-    if (K.sibuk || !K.buf) return;
-    K.buf = K.buf.slice(0, -1); renderKunci();
-  }
-
-  async function selesaiPin() {
-    if (K.sibuk || K.buf.length !== PANJANG_PIN) return;
-    const pin = K.buf;
-    if (K.langkah === 'lama') {
-      K.sibuk = true; renderKunci();
-      let cocok = false;
-      try { cocok = (await sidikPin(pin, S.kunci.garam)) === S.kunci.sidik; } catch (e) { cocok = false; }
-      K.sibuk = false; K.buf = '';
-      if (!cocok) {
-        const g = catatGagal();
-        K.pesan = 'PIN salah.' + (g.n % 5 ? ' Sisa ' + (5 - (g.n % 5)) + ' percobaan sebelum harus menunggu.' : '');
-        goyangTitik(); renderKunci(); return;
-      }
-      try { localStorage.removeItem(KUNCI.gagal); } catch (e) { /* abaikan */ }
-      if (K.mode === 'ubah') { K.langkah = 'baru'; renderKunci(); return; }
-      bukaAplikasi(); return;
-    }
-    if (K.langkah === 'baru') {
-      K.buf = '';
-      if (/^(\d)\1+$/.test(pin) || PIN_LEMAH.indexOf(pin) >= 0) {
-        K.pesan = 'PIN itu terlalu mudah ditebak. Pilih kombinasi lain.'; goyangTitik(); renderKunci(); return;
-      }
-      K.baru = pin; K.langkah = 'ulang'; renderKunci(); return;
-    }
-    // langkah 'ulang'
-    K.buf = '';
-    if (pin !== K.baru) {
-      K.baru = ''; K.langkah = 'baru'; K.pesan = 'PIN tidak sama. Buat lagi dari awal.'; goyangTitik(); renderKunci(); return;
-    }
-    K.sibuk = true; renderKunci();
-    const garam = garamBaru();
-    const sidik = await sidikPin(pin, garam);
-    S.kunci = { garam: garam, sidik: sidik, jeda: S.kunci && S.kunci.jeda != null ? Number(S.kunci.jeda) : 60 };
-    simpanLokal(KUNCI.kunci, S.kunci);
-    try { localStorage.removeItem(KUNCI.gagal); } catch (e) { /* abaikan */ }
-    K.sibuk = false;
-    const diubah = K.mode === 'ubah' || K.dariLupa;
-    K.dariLupa = false;
-    if (K.mode === 'ubah') { tutupKunci(); renderSetelan(); } else bukaAplikasi();
-    toast(diubah ? 'PIN kunci diganti' : 'PIN kunci tersimpan');
-  }
-
-  function bukaAplikasi() {
-    const pertama = !S.sudahMulai;
-    S.terbuka = true; S.sudahMulai = true; S.sembunyiSejak = 0;
-    tutupKunci();
-    if (pertama || $('#utama').hidden) tampilUtama(); else render();
-    sinkron({ muat: pertama || Date.now() - S.sinkronTerakhir > 2 * 60 * 1000 });
-  }
-
-  // Dipanggil setelah aplikasi terhubung: minta PIN, atau minta membuat PIN kalau belum ada.
-  function masuk() { tampilKunci(S.kunci ? 'buka' : 'buat'); }
-
-  /* ---------- lupa PIN: kode dikirim ke Gmail pemilik spreadsheet ---------- */
-  function bukaLupa() {
-    K.lupa = { tahap: 'minta', email: '', sibuk: false, pesan: '', ulangPada: 0 };
-    $('#kunci-pin').hidden = true; $('#kunci-lupa').hidden = false;
-    $('#lupa-kode').value = '';
-    renderLupa();
-  }
-  function tutupLupa() {
-    clearInterval(K.jamLupa); K.jamLupa = null; K.lupa = null;
-    $('#kunci-lupa').hidden = true; $('#kunci-pin').hidden = false;
-    K.buf = ''; K.pesan = ''; renderKunci();
-  }
-  function renderLupa() {
-    const L = K.lupa; if (!L) return;
-    const kode = L.tahap === 'kode';
-    $('#lupa-ket').textContent = kode
-      ? 'Kode 6 angka sudah dikirim ke ' + (L.email || 'Gmail pemilik spreadsheet') + '. Buka Gmail, lalu ketik kodenya di sini. Kode berlaku 10 menit.'
-      : 'Arta akan mengirim kode 6 angka ke Gmail pemilik spreadsheet. Setelah kodenya benar, kamu membuat PIN baru. Data transaksi tidak berubah.';
-    $('#lupa-isian').hidden = !kode;
-    const galat = $('#lupa-galat'); galat.textContent = L.pesan; galat.hidden = !L.pesan;
-    const utama = $('#lupa-utama');
-    utama.disabled = L.sibuk;
-    utama.textContent = L.sibuk ? (kode ? 'Memeriksa…' : 'Mengirim…') : (kode ? 'Periksa kode' : 'Kirim kode ke Gmail');
-    const ulang = $('#lupa-ulang');
-    const sisa = Math.max(0, Math.ceil((L.ulangPada - Date.now()) / 1000));
-    ulang.hidden = !kode; ulang.disabled = L.sibuk || sisa > 0;
-    ulang.textContent = sisa > 0 ? 'Kirim ulang kode (' + sisa + ' detik)' : 'Kirim ulang kode';
-    if (kode && sisa > 0 && !K.jamLupa) {
-      K.jamLupa = setInterval(() => {
-        if (!K.lupa || K.lupa.ulangPada <= Date.now()) { clearInterval(K.jamLupa); K.jamLupa = null; }
-        if (K.lupa) renderLupa();
-      }, 1000);
-    }
-  }
-  const pesanLupa = (e) => {
-    if (e.jaringan) return 'Perlu internet untuk memakai kode. Nyalakan data atau Wi-Fi, lalu coba lagi.';
-    if (e.kode === 'PIN_SALAH' || e.kode === 'TERKUNCI' || e.kode === 'PIN_BELUM_DIATUR') {
-      return 'Skrip penghubung belum mendukung kode email. Ganti Code.gs dengan versi terbaru, lalu deploy versi baru.';
-    }
-    return e.message;
-  };
-  async function mintaKode() {
-    const L = K.lupa; if (!L || L.sibuk) return;
-    L.sibuk = true; L.pesan = ''; renderLupa();
-    try {
-      const r = await panggil('kirimKode', null, { url: S.cfg.url, pin: '' });
-      L.tahap = 'kode'; L.email = r.email || ''; L.ulangPada = Date.now() + 60000;
-    } catch (e) {
-      if (e.kode === 'TUNGGU') { L.tahap = 'kode'; L.ulangPada = Date.now() + 60000; L.pesan = 'Kode baru saja dikirim. Periksa Gmail-mu, termasuk folder Spam.'; }
-      else L.pesan = pesanLupa(e);
-    }
-    if (K.lupa !== L) return;
-    L.sibuk = false; renderLupa();
-    if (L.tahap === 'kode') $('#lupa-kode').focus();
-  }
-  async function periksaKodeLupa() {
-    const L = K.lupa; if (!L || L.sibuk) return;
-    const kode = $('#lupa-kode').value.replace(/\D/g, '');
-    if (kode.length !== 6) { L.pesan = 'Ketik 6 angka dari email.'; renderLupa(); return; }
-    L.sibuk = true; L.pesan = ''; renderLupa();
-    try {
-      await panggil('periksaKode', { kode: kode }, { url: S.cfg.url, pin: '' });
-    } catch (e) {
-      if (K.lupa !== L) return;
-      L.sibuk = false; L.pesan = pesanLupa(e);
-      if (e.kode === 'KODE_HANGUS') { L.tahap = 'minta'; $('#lupa-kode').value = ''; }
-      renderLupa(); return;
-    }
-    if (K.lupa !== L) return;
-    clearInterval(K.jamLupa); K.jamLupa = null;
-    try { localStorage.removeItem(KUNCI.gagal); } catch (e) { /* abaikan */ }
-    tampilKunci('buat'); K.dariLupa = true; renderKunci();
-  }
-
   /* ---------- layar hubungkan ---------- */
   function tampilSetup(ubah) {
     $('#utama').hidden = true; $('#setup').hidden = false;
@@ -1124,8 +891,7 @@
       S.data = r.data || []; S.pernahMuat = true; S.perluMuat = false;
       S.sinkronTerakhir = Date.now(); S.status = 'ok';
       simpanLokal(KUNCI.cfg, S.cfg); simpanLokal(KUNCI.data, S.data); simpanLokal(KUNCI.sinkron, S.sinkronTerakhir);
-      S.sudahMulai = true;
-      if (S.kunci) { S.terbuka = true; tampilUtama(); } else { tampilUtama(); tampilKunci('buat'); }
+      tampilUtama();
       toast(S.data.length ? 'Terhubung. ' + S.data.length + ' transaksi dimuat.' : 'Terhubung ke spreadsheet');
       sinkron(); // kirim antrean lama kalau ada
     } catch (e) {
@@ -1141,22 +907,6 @@
     const t = ev.target.closest('button, [data-tutup]');
     if (!t) return;
     const d = t.dataset;
-
-    // layar kunci
-    if (t.closest('#kunci')) {
-      if (d.angka != null) { tekanAngka(d.angka); return; }
-      if (t.id === 'kunci-hapus') { hapusAngka(); return; }
-      if (t.id === 'kunci-kiri') {
-        if (K.mode === 'ubah') tutupKunci();
-        else if (K.langkah === 'ulang') { K.langkah = 'baru'; K.buf = ''; K.baru = ''; K.pesan = ''; renderKunci(); }
-        else if (K.mode === 'buka') bukaLupa();
-        return;
-      }
-      if (t.id === 'lupa-batal') { tutupLupa(); return; }
-      if (t.id === 'lupa-ulang') { mintaKode(); return; }
-      return;
-    }
-    if (!$('#kunci').hidden) return;
 
     if (t.id === 'fab' || 'tambah' in d) { bukaLembar(null); return; }
     if ('tutup' in d) { tutupLembar(); return; }
@@ -1206,8 +956,6 @@
     if (d.tema) { aturTema(d.tema); return; }
     if ('ujiNotif' in d) { ujiNotif(); return; }
     if ('ubahKoneksi' in d) { tampilSetup(true); return; }
-    if ('ubahKunci' in d) { tampilKunci('ubah'); return; }
-    if (d.jeda != null && S.kunci) { S.kunci.jeda = Number(d.jeda); simpanLokal(KUNCI.kunci, S.kunci); renderSetelan(); return; }
     if (t.id === 'setup-batal') { tampilUtama(); return; }
     if (d.buangKat) {
       S.katKustom[d.j] = (S.katKustom[d.j] || []).filter((k) => k !== d.buangKat);
@@ -1256,26 +1004,13 @@
 
   $('#form-tx').addEventListener('submit', (ev) => { ev.preventDefault(); simpanTransaksi(); });
   $('#form-setup').addEventListener('submit', kirimSetup);
-  $('#form-lupa').addEventListener('submit', (ev) => {
-    ev.preventDefault();
-    if (!K.lupa) return;
-    if (K.lupa.tahap === 'kode') periksaKodeLupa(); else mintaKode();
-  });
   $('#kat-input').addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); tambahKategoriBaru(); } });
 
   window.addEventListener('popstate', () => {
-    if (!$('#kunci').hidden && K.mode === 'ubah') { tutupKunci(); return; }
     if (!$('#dialog').hidden) tutupDialog(false);
     sembunyikanLembar();
   });
   document.addEventListener('keydown', (ev) => {
-    if (!$('#kunci').hidden) {
-      if ($('#kunci-lupa').hidden) {
-        if (/^\d$/.test(ev.key)) { ev.preventDefault(); tekanAngka(ev.key); }
-        else if (ev.key === 'Backspace') { ev.preventDefault(); hapusAngka(); }
-      }
-      return;
-    }
     if (ev.key !== 'Escape') return;
     if (!$('#dialog').hidden) tutupDialog(false);
     else tutupLembar();
@@ -1284,17 +1019,7 @@
   window.addEventListener('online', () => sinkron());
   window.addEventListener('offline', () => { aturStatus('offline'); });
   document.addEventListener('visibilitychange', () => {
-    if (!S.cfg) return;
-    const jeda = S.kunci ? Number(S.kunci.jeda) || 0 : 0;
-    if (document.visibilityState !== 'visible') {
-      S.sembunyiSejak = Date.now();
-      // "Segera": kunci saat ditinggalkan, supaya isi tidak terlihat di daftar aplikasi terbaru.
-      if (S.kunci && S.terbuka && jeda === 0) tampilKunci('buka');
-      return;
-    }
-    if (S.kunci && S.terbuka && S.sembunyiSejak && Date.now() - S.sembunyiSejak >= jeda * 1000) tampilKunci('buka');
-    S.sembunyiSejak = 0;
-    if (!S.terbuka) return;
+    if (document.visibilityState !== 'visible' || !S.cfg) return;
     sinkron({ muat: Date.now() - S.sinkronTerakhir > 2 * 60 * 1000 });
     render(); // tanggal "hari ini" bisa sudah berganti
   });
@@ -1321,6 +1046,7 @@
   if (!S.cfg) tampilSetup(false);
   else {
     S.status = 'sinkron';
-    masuk();
+    tampilUtama();
+    sinkron({ muat: true });
   }
 })();
