@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="theme-color" content="#ffffff">
+  <meta name="description" content="Catat pemasukan dan pengeluaran langsung ke Google Sheets.">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Arta">
+  <title>Arta — Catatan Keuangan</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="preload" href="font-jakarta.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="aurora" aria-hidden="true"></div>
+
+  <!-- ================= LAYAR HUBUNGKAN (pertama kali) ================= -->
+  <section id="setup" class="setup" hidden>
+    <div class="setup-isi">
+      <img src="icon-192.png" alt="" class="setup-logo" width="72" height="72">
+      <h1>Hubungkan ke spreadsheet-mu</h1>
+      <p class="setup-ket">Tempel URL aplikasi web dari Apps Script, lalu masukkan PIN yang kamu tulis di Code.gs. Cukup sekali di HP ini.</p>
+      <form id="form-setup" novalidate>
+        <label class="isian">
+          <span>URL aplikasi web</span>
+          <input id="in-url" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://script.google.com/macros/s/…/exec">
+        </label>
+        <label class="isian">
+          <span>PIN</span>
+          <input id="in-pin" type="password" autocomplete="off" placeholder="PIN dari Code.gs">
+        </label>
+        <p class="galat" id="setup-galat" role="alert" hidden></p>
+        <button class="tombol utama lebar" type="submit" id="setup-tombol">Hubungkan</button>
+        <button class="tombol polos lebar" type="button" id="setup-batal" hidden>Batal</button>
+      </form>
+      <p class="setup-catatan">URL dan PIN hanya disimpan di HP ini, tidak dikirim ke mana pun selain ke spreadsheet-mu.</p>
+    </div>
+  </section>
+
+  <!-- ================= APLIKASI UTAMA ================= -->
+  <div id="utama" class="utama" hidden>
+    <header class="kepala">
+      <h1 id="judul-hal">Ringkasan</h1>
+      <button type="button" id="status" class="status" aria-live="polite" title="Sinkronkan sekarang">
+        <span class="status-titik"></span><span id="status-teks">Tersinkron</span>
+      </button>
+    </header>
+
+    <main id="isi">
+      <section class="hal" id="hal-beranda" aria-labelledby="judul-hal">
+        <div class="periode" data-periode></div>
+        <div id="beranda-isi"></div>
+      </section>
+
+      <section class="hal" id="hal-grafik" hidden>
+        <div class="periode" data-periode></div>
+        <div id="grafik-isi"></div>
+      </section>
+
+      <section class="hal" id="hal-riwayat" hidden>
+        <div class="cari">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+          <input id="cari" type="search" placeholder="Cari kategori, catatan, atau nominal" autocomplete="off" aria-label="Cari transaksi">
+        </div>
+        <div class="baris-filter">
+          <div class="chips kecil" id="filter-jenis" role="group" aria-label="Jenis transaksi">
+            <button type="button" class="chip aktif" data-jenis="semua">Semua</button>
+            <button type="button" class="chip" data-jenis="pengeluaran">Pengeluaran</button>
+            <button type="button" class="chip" data-jenis="pemasukan">Pemasukan</button>
+          </div>
+          <button type="button" class="chip garis" id="filter-buka" aria-expanded="false" aria-controls="filter-panel">Filter</button>
+        </div>
+        <div class="filter-panel" id="filter-panel" hidden>
+          <label class="isian"><span>Kategori</span><select id="filter-kategori"></select></label>
+          <div class="dua">
+            <label class="isian"><span>Dari tanggal</span><input type="date" id="filter-dari"></label>
+            <label class="isian"><span>Sampai tanggal</span><input type="date" id="filter-sampai"></label>
+          </div>
+          <button type="button" class="tombol polos" id="filter-hapus">Hapus semua filter</button>
+        </div>
+        <div id="riwayat-isi"></div>
+      </section>
+
+      <section class="hal" id="hal-setelan" hidden>
+        <div id="setelan-isi"></div>
+      </section>
+    </main>
+
+    <nav class="nav" aria-label="Navigasi utama">
+      <button type="button" class="nav-item aktif" data-hal="beranda">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9h12v-9"/></svg>
+        <span>Ringkasan</span>
+      </button>
+      <button type="button" class="nav-item" data-hal="grafik">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20V10"/><path d="M12 20V4"/><path d="M19 20v-7"/></svg>
+        <span>Grafik</span>
+      </button>
+      <div class="nav-tengah">
+        <button type="button" class="fab" id="fab" aria-label="Tambah transaksi">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+      </div>
+      <button type="button" class="nav-item" data-hal="riwayat">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
+        <span>Riwayat</span>
+      </button>
+      <button type="button" class="nav-item" data-hal="setelan">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg>
+        <span>Setelan</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- ================= LEMBAR TAMBAH / UBAH TRANSAKSI ================= -->
+  <div id="lembar" class="lembar" hidden>
+    <div class="lembar-latar" data-tutup></div>
+    <form class="lembar-isi" id="form-tx" role="dialog" aria-modal="true" aria-labelledby="lembar-judul" novalidate>
+      <div class="lembar-gulir">
+        <div class="lembar-kepala">
+          <h2 id="lembar-judul">Tambah transaksi</h2>
+          <button type="button" class="tombol-ikon" data-tutup aria-label="Tutup">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+          </button>
+        </div>
+
+        <div class="segmen" id="tx-jenis" role="group" aria-label="Jenis transaksi">
+          <button type="button" data-jenis="pengeluaran" class="aktif">Pengeluaran</button>
+          <button type="button" data-jenis="pemasukan">Pemasukan</button>
+        </div>
+
+        <label class="nominal" for="tx-nominal">
+          <span class="nominal-rp">Rp</span>
+          <input id="tx-nominal" type="text" inputmode="numeric" autocomplete="off" placeholder="0" aria-label="Nominal" aria-describedby="galat-nominal">
+        </label>
+        <p class="galat" id="galat-nominal" role="alert" hidden></p>
+
+        <h3 class="label-isian">Kategori</h3>
+        <div class="chips" id="tx-kategori" role="group" aria-label="Kategori"></div>
+        <div class="kat-baru" id="kat-baru" hidden>
+          <input id="kat-input" type="text" maxlength="40" placeholder="Nama kategori baru" aria-label="Nama kategori baru">
+          <button type="button" class="tombol kecil" id="kat-tambah">Tambah</button>
+        </div>
+        <p class="galat" id="galat-kategori" role="alert" hidden></p>
+
+        <h3 class="label-isian">Tanggal</h3>
+        <div class="baris-tanggal">
+          <button type="button" class="chip" data-geser="0">Hari ini</button>
+          <button type="button" class="chip" data-geser="-1">Kemarin</button>
+          <input type="date" id="tx-tanggal" aria-label="Tanggal transaksi">
+        </div>
+        <p class="galat" id="galat-tanggal" role="alert" hidden></p>
+
+        <label class="isian catatan">
+          <span>Catatan (opsional)</span>
+          <input id="tx-catatan" type="text" maxlength="300" autocomplete="off" placeholder="Misalnya: makan siang di kantin">
+        </label>
+      </div>
+
+      <div class="lembar-aksi">
+        <button type="button" class="tombol bahaya-garis" id="tx-hapus" hidden>Hapus</button>
+        <button type="submit" class="tombol utama" id="tx-simpan">Simpan</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- ================= DIALOG KONFIRMASI ================= -->
+  <div id="dialog" class="dialog" hidden>
+    <div class="dialog-kotak" role="alertdialog" aria-modal="true" aria-labelledby="dialog-judul" aria-describedby="dialog-teks">
+      <h2 id="dialog-judul"></h2>
+      <p id="dialog-teks"></p>
+      <div class="dialog-aksi">
+        <button type="button" class="tombol polos" id="dialog-batal">Batal</button>
+        <button type="button" class="tombol bahaya" id="dialog-ya">Hapus</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+  <script src="chart.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
